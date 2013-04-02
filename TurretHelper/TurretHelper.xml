@@ -16,36 +16,38 @@ xsi:schemaLocation="http://www.red5studios.com/ ../../../schemas/component.xsd">
 		<Event name="ON_DEPLOYABLE_STATUS_CHANGED" bind="OnDeployableStatusChanged"/>
 		<Event name="ON_DEPLOYABLE_VITALS_CHANGED" bind="OnDeployableVitalsChanged"/>
 		<Event name="ON_DEPLOYABLE_INFO_CHANGED" bind="OnDeployableInfoChanged"/>
-		<Event name="ON_COMBAT_EVENT" bind="OnCombatEvent" />
+		<!--<Event name="ON_COMBAT_EVENT" bind="OnCombatEvent" />-->
 	</Events>
 	
 	<Textures>
-		<Texture name="test" src="components/MainUI/TurretHelper/test.dds" premultiplied="true">
+		<Texture name="turreticons" src="components/MainUI/TurretHelper/turreticons.dds" premultiplied="true">
+			<Region name="asdf" top="0" bottom="59" left="0" right="59" />
+			<Region name="heavyturret" top="0" bottom="59" left="60" right="119" />
+			<Region name="multiturret" top="0" bottom="59" left="120" right="179" />
+			<Region name="sentpod" top="0" bottom="59" left="180" right="239" />
+		</Texture>
+		<Texture name="healthbar" src="components/MainUI/TurretHelper/healthbar.dds" premultiplied="true">
 			<Region name="bg" top="0" bottom="64" left="0" right="64" />
 			<Region name="fg" top="2" bottom="62" left="66" right="126" />
 		</Texture>
+
 	</Textures>
 	
 	<BluePrints>
-		<BluePrint name="deployableInfo">
-			<StillArt name="healthBarBG" style="texture:test; region:bg; alpha:1.0; visible:true" dimensions="width:40; height:40; top:0; left:0;" />
-			<StillArt name="healthBarFG" style="texture:test; region:fg; alpha:1.0; visible:true" dimensions="width:38; height:38; top:1; left:1;" />
-			<Text name="deployableName" dimensions="left:0; width:64; top:0; height:80;" style="font:UbuntuBold_9; halign:left; valign:center; alpha:1.0" /> 
+		<BluePrint name="deployableInfo" instantiable="true">
+			<Group name="healthbar" dimensions="top:0; bottom:100%; left:0; right:100%;" >
+				<StillArt name="hbBg" style="texture:healthbar; region:bg; alpha:1.0; visible:true" dimensions="width:40; height:40; top:0; left:0;" />
+				<StillArt name="hbFg" style="texture:healthbar; region:fg; alpha:1.0; visible:true" dimensions="width:38; height:38; top:1; left:1;" />
+			</Group>
+			<StillArt name="icon" style="texture:turreticons; region:asdf; alpha:1.0; visible:true" dimensions="width:38; height:38; top:1; left:1;" />
+			<Text name="timeleft" dimensions="right:40; width:30; top:0; height:30;" style="font:UbuntuBold_9; halign:right; valign:top; alpha:1.0" />
 		</BluePrint>
 	</BluePrints>
 	
 	<Frames>
 		<HUDFrame name="TurretHelper" dimensions="left:10; width:400; top:400; height:252;"> 
 			<Children>
-				<Group id="deployables" dimensions="left:0%; top:36; width:100%; height:100%">
-					<Group blueprint="deployableInfo" tag="1" dimensions="left:0; top:0; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="2" dimensions="left:0; top:36; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="3" dimensions="left:0; top:72; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="4" dimensions="left:0; top:108; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="5" dimensions="left:0; top:144; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="6" dimensions="left:0; top:180; height:100%; width:100%" />
-					<Group blueprint="deployableInfo" tag="7" dimensions="left:0; top:216; height:100%; width:100%" />
-				</Group>
+				<Group id="deployables" dimensions="dock:fill" />
 			</Children>
 		</HUDFrame>
 	</Frames>

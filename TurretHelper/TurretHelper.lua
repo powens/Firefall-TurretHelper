@@ -4,25 +4,29 @@ require "table";
 require "./lib/lib_qol";
 require "lib/lib_InterfaceOptions";
 require "lib/lib_Slash";
+require "lib/lib_Callback2"
 
 local FRAME = Component.GetFrame("TurretHelper");
-local DEPLOYABLEINFO = Component.GetWidget("deployables");
+local DEPLOYABLES = Component.GetWidget("deployables");
 local FRAME_SIZE = 40
 local FRAME_BUFFER = 2
-local deployableFrames = {}
 local activeDeployables = {}
 --[[
 'entityId' : {
 	'deployTime': blah,
-	'frame': frame,
+	group: { FRAMESTUFF },
 	'abilityId': id,
 }
 ]]--
 
-local TRACKED_ENTITY_IDS = { [35542] = 0, [34629] = 300, [35487] = 180 };
-local ENTITY_DURATION_SEC = {};
+local TRACKED_ENTITY_IDS = { 
+	[35542] = { duration = 0, icon = "heavyturret"}, 
+	[34629] = { duration = 300, icon = "multiturret" },
+	[35487] = { duration = 180, icon = "sentpod"  },
+};
 
 local TURRET_HELPER_SLASH_CMDS = {};
+local timer = Callback2.Create() 
 
 InterfaceOptions.AddMovableFrame({
 	frame = FRAME,
@@ -31,65 +35,90 @@ InterfaceOptions.AddMovableFrame({
 });
 
 function OnLoad()
-	for i = 1, DEPLOYABLEINFO:GetChildCount() do
-		deployableFrames[i] = DEPLOYABLEINFO:GetChild(i)
-		deployableFrames[i]:SetParam("alpha", 0.0)
-	end
+	--Called when the addon loads
 	InitSlashCommands();
+	
+	timer:Bind(UpdateAllDeployableTimeleft)
+	timer:Schedule(1)
+end
+
+function CreateDeployable(entityId)
+	local info = Game.GetTargetInfo(entityId)
+	local abilityId = tonumber(info["sourceAbilityId"])
+	local deployable = {group = Component.CreateWidget("deployableInfo", FRAME)};
+	deployable.icon = deployable.group:GetChild("icon");
+	deployable.icon:SetRegion(TRACKED_ENTITY_IDS[abilityId].icon)
+	deployable.healthbar = {group = deployable.group:GetChild("healthbar")};
+	deployable.healthbar.fg = deployable.healthbar.group:GetChild("hbFg");
+	deployable.timeLeft = deployable.group:GetChild("timeleft");
+	
+	local duration = TRACKED_ENTITY_IDS[abilityId].duration;
+	if duration > 0 then
+		deployable.time = tonumber(System.GetClientTime()) + (duration * 1000)
+		
+	else
+		deployable.time = 0
+	end
+	
+	deployable.abilityId = abilityId;
+	return deployable
 end
 
 function IsEntityTracked(entityId)
-	return activeDeployables[tostring(entityId)] ~= nil
+	--Check to see if the entity is currently being tracked
+	return activeDeployables[tostring(entityId)] ~= nil;
 end
 
-function UpdateDeployable(entityId)
+function UpdateDeployableInfo(entityId)
 	local info = Game.GetTargetInfo(entityId);
+	--Do nothing, for now
+end
+
+function UpdateDeployableVitals(entityId)
 	local vitals = Game.GetTargetVitals(entityId);
+	activeDeployables[entityId].healthbar.fg:SetDims("bottom:" .. (FRAME_SIZE-FRAME_BUFFER/2) .."; height:" .. tostring((FRAME_SIZE-FRAME_BUFFER)*vitals["health_pct"]) .. ";")
+end
+
+function UpdateDeployableStatus(entityId)
 	local status = Game.GetTargetStatus(entityId);
 	local stateStr = "";
 	if status["state"] ~= nil then
 		stateStr = "[" .. status["state"] .. "]";
 	end
-	local timeLeft = ""
-	--log(tostring(info["name"]))
-	if TRACKED_ENTITY_IDS[tonumber(info["sourceAbilityId"])] > 0 then
-		timeLeft = "[" .. 300 + ( tonumber(activeDeployables[entityId]["time"]) - tonumber(System.GetClientTime())) / 1000 .."]"
-	end
-	
-	local displayStr = "[" .. info["name"] .. "]\n" .. timeLeft .. "\n" .. stateStr .. "\n";
-	
-	local deployableFrame = deployableFrames[activeDeployables[entityId]["frame"]]
-	
-	deployableFrame:GetChild("deployableName"):SetText(displayStr)
-	deployableFrame:GetChild("healthBarFG"):SetDims("bottom:" .. (FRAME_SIZE-FRAME_BUFFER/2) .."; height:" .. tostring((FRAME_SIZE-FRAME_BUFFER)*vitals["health_pct"]) .. ";")
-	deployableFrame:SetParam("alpha", 1.0)
 end
 
-function GetFirstUnusedFrame()
-	--Kind of hacky right now. Need to make better
-	for i = 1, #deployableFrames do
-		if (deployableFrames[i]:GetParam("alpha") == 0) then
-			return i
-		end
+function UpdateAllDeployableTimeleft()
+	for i,j in pairs(activeDeployables) do
+		UpdateDeployableTimeleft(i);
 	end
-	
-	return -1
+	timer:Reschedule(1)
+end
+
+function UpdateDeployableTimeleft(entityId)
+	if (activeDeployables[entityId].time > 0) then
+		activeDeployables[entityId].timeLeft:SetText(math.floor((tonumber(activeDeployables[entityId].time) - tonumber(System.GetClientTime())) / 1000));
+	end
+end
+
+function UpdateDeployable(entityId)
+	--Update a deployable's info by entityId
+	UpdateDeployableInfo(entityId);
+	UpdateDeployableVitals(entityId);
+	UpdateDeployableStatus(entityId);
+	UpdateDeployableTimeleft(entityId);
 end
 
 function UpdateFramePositions()
 	local idCount = {}
 	local currentRow = 0
 	for i,j in pairs(activeDeployables) do
-		local abilityId = tostring(j["abilityId"])
+		local abilityId = tostring(j.abilityId)
 		if idCount[abilityId] == nil then
-			deployableFrames[j["frame"]]:SetDims("left:0; top:" .. currentRow*(FRAME_SIZE+FRAME_BUFFER) .. ";")
+			j.group:SetDims("left:0; top:" .. currentRow*(FRAME_SIZE+FRAME_BUFFER) .. ";")
 			idCount[abilityId] = { count = 1, row = currentRow }
 			currentRow = currentRow + 1
-			log('a')
-			log(tostring(idCount))
 		else
-			log('b')
-			deployableFrames[j["frame"]]:SetDims("left:" .. (idCount[abilityId]["count"] * (FRAME_SIZE+FRAME_BUFFER)) .. "; top:" .. (idCount[abilityId]["row"]*(FRAME_SIZE+FRAME_BUFFER)) .. ";")
+			j.group:SetDims("left:" .. (idCount[abilityId]["count"] * (FRAME_SIZE+FRAME_BUFFER)) .. "; top:" .. (idCount[abilityId]["row"]*(FRAME_SIZE+FRAME_BUFFER)) .. ";")
 			idCount[abilityId]["count"] = idCount[abilityId]["count"] + 1
 		end
 	end
@@ -104,7 +133,7 @@ function UpdateAllDeployables()
 		if IsEntityTracked(entityId) == false then
 			if IsTrackedDeployable(entityId) then
 				local id = Game.GetTargetInfo(entityId)
-				activeDeployables[entityId] = { time = System.GetClientTime(), frame = GetFirstUnusedFrame(), abilityId = id["sourceAbilityId"] }
+				activeDeployables[entityId] = CreateDeployable(entityId)
 				UpdateDeployable(entityId)
 			end
 		else
@@ -117,7 +146,8 @@ end
 function PruneDeployables()
 	for i,k in pairs(activeDeployables) do
 		if Game.GetTargetStatus(i) == nil then
-			deployableFrames[k["frame"]]:SetParam("alpha", 0.0)
+			--["frame"]]:SetParam("alpha", 0.0)
+			Component.RemoveWidget(activeDeployables[i].group);
 			activeDeployables[i] = nil
 		end
 	end
@@ -146,7 +176,7 @@ function OnDeployableStatusChanged(args)
 	--log("[StatusChanged] " .. info["name"] .. " " .. stateStr);
 	local entityId = tostring(args["entityId"])
 	if IsEntityTracked(entityId) then
-		UpdateDeployable(entityId);
+		UpdateDeployableStatus(entityId);
 	end
 end
 
@@ -155,7 +185,7 @@ function OnDeployableVitalsChanged(args)
 	--log("[VitalsChanged] " .. tostring(vitals));--vitals["Health"] .. "/" .. vitals["MaxHealth"]);
 	local entityId = tostring(args["entityId"])
 	if IsEntityTracked(entityId) then
-		UpdateDeployable(entityId);
+		UpdateDeployableVitals(entityId);
 	end
 end
 
@@ -164,7 +194,7 @@ function OnDeployableInfoChanged(args)
 	--log("[InfoChanged] " .. " " .. info["name"]);
 	local entityId = tostring(args["entityId"])
 	if IsEntityTracked(entityId) then
-		UpdateDeployable(entityId);
+		UpdateDeployableInfo(entityId);
 	end
 end
 
